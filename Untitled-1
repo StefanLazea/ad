@@ -1,0 +1,483 @@
+SEMINAR 2
+
+import pandas as pd
+import calcule
+import grafice
+import numpy as np
+
+nume_fisier = "ADN/ADN/ADN_Total.csv"
+
+# SEMINAR 1
+# Citire din fisier in DataFrame
+tabel = pd.read_csv(nume_fisier, index_col=0)
+# print(tabel)
+# Preluare nume de variabile in obiect list
+variabile = list(tabel)
+instante = list(tabel.index)
+# print(variabile,instante,sep="\n")
+x = tabel[variabile].values
+# print(x,type(x),sep="\n")
+r, alpha, a, c = calcule.acp(x)
+
+t_r = pd.DataFrame(r, variabile, variabile)
+t_r.to_csv("R.csv")
+grafice.corelograma(t_r)
+
+t_varianta = calcule.tabelare_valori_proprii(alpha)
+t_varianta.to_csv("Varianta.csv")
+
+# SEMINAR 2
+# Calcul corelatii factoriale
+rxc = a * np.sqrt(alpha)
+# Tabelare corelatii factoriale
+nume_componente = ["Comp" + str(i) for i in range(1, len(alpha) + 1)]
+t_rxc = pd.DataFrame(data=rxc, index=variabile, columns=nume_componente)
+t_rxc.to_csv("rxc.csv")
+
+# Vizualizare corelograma corelatii factoriale
+grafice.corelograma(t_rxc, titlu="Corelograma corelatii factoriale")
+
+# Calcul scoruri
+s = c / np.sqrt(alpha)
+t_s = pd.DataFrame(data=s, index=instante, columns=nume_componente)
+t_s.to_csv("s.csv")
+# Plot instante
+grafice.scatter_plot(s, nume_instante=instante, titlu="Plot instante dupa scoruri")
+
+# Calcul cosinusuri
+c2 = c * c
+cos = np.transpose(np.transpose(c2) / np.sum(c2, axis=1))
+t_cos = pd.DataFrame(data=cos, index=instante, columns=nume_componente)
+t_cos.to_csv("cos.csv")
+
+# Calcul contributii
+n = len(instante)
+beta = c2 / (n * alpha)
+t_beta = pd.DataFrame(data=beta, index=instante, columns=nume_componente)
+t_beta.to_csv("contributii.csv")
+
+# Calcul comunalitati
+comm = np.cumsum(rxc * rxc, axis=1)
+t_comm = pd.DataFrame(data=comm, index=variabile, columns=nume_componente)
+t_comm.to_csv("comunalitati.csv")
+
+# Corelograma comunalitati
+grafice.corelograma(t_comm, vmin=0, titlu="Corelograma comunalitati")
+grafice.plt_show()
+
+
+SEMINAR 1 grafice
+import matplotlib.pyplot as plt
+import seaborn as sb
+
+
+def corelograma(t, vmin=-1, vmax=1, titlu="Corelograma"):
+    fig = plt.figure(figsize=(10, 7))
+    ax = fig.add_subplot(1, 1, 1)
+    ax.set_title(titlu, fontsize=16)
+    sb.heatmap(t, vmin, vmax, "RdYlBu", ax=ax)
+
+
+# Plot instante
+def scatter_plot(x, k1=0, k2=1, nume_instante=None, titlu="Plot instante"):
+    fig = plt.figure(figsize=(10, 7))
+    assert isinstance(fig, plt.Figure)
+    ax = fig.add_subplot(1, 1, 1)
+    assert isinstance(ax, plt.Axes)
+    ax.set_title(titlu, fontsize=16)
+    ax.set_xlabel("a" + str(k1 + 1))
+    ax.set_ylabel("a" + str(k2 + 1))
+    ax.scatter(x[:, k1], x[:, k2], c='b')
+    if nume_instante is not None:
+        n = len(nume_instante)
+        for i in range(n):
+            ax.text(x[i, k1], x[i, k2], nume_instante[i])
+
+
+def plt_show():
+    plt.show()
+
+
+
+
+
+SEMINAR 3
+import pandas as pd
+import sklearn.decomposition as dec
+import functii3
+import numpy as np
+import factor_analyzer as fact
+
+t = pd.read_csv("Freelancer/Freelancer/FreeLancerT.csv", index_col=1)
+variabile = list(t)
+variabile_prelucrate = variabile[2:]
+# print(variabile)
+x = t[variabile_prelucrate].values
+n, m = np.shape(x)
+# print(x)
+functii3.inlocuire_nan(x)
+# print(x)
+
+# Construire model PCA - Analiza in componente principale
+model_pca = dec.PCA()
+x_std = (x - np.mean(x, axis=0)) / np.std(x, axis=0)
+model_pca.fit(x_std)
+
+
+# Calcul scoruri
+s = model_pca.transform(x_std)
+print("Componente (scoruri) ACP sklearn:", s, sep="\n")
+functii3.plot_scoruri(s[:, 0], s[:, 1], list(t.index), "C1", "C2", "Plot scoruri - ACP")
+rxs_ = np.corrcoef(x, s, rowvar=False)
+rxs = rxs_[:m, m:]
+print("Corelatii variabile - componente ACP sklearn:", rxs, sep="\n")
+alpha = model_pca.explained_variance_
+a = model_pca.components_
+
+# Analiza factoriala
+model_fa = fact.FactorAnalyzer(rotation=None)
+model_fa.fit(x)
+
+# Calcul scoruri
+f = model_fa.transform(x)
+print("Factori comuni (factor_analyzer):", f, sep="\n")
+functii3.plot_scoruri(f[:, 0], f[:, 1], list(t.index), "F1", "F2", "Plot scoruri - Analiza Factoriala")
+l = model_fa.loadings_
+print("Legaturi variabile - factori comuni (factor_analyzer):", l, sep="\n")
+alpha_fa = model_fa.get_factor_variance()
+print("Varianta explicata de factori (factor_analyzer):", alpha_fa, sep="\n")
+
+
+# Model factorial sklearn
+model_fa_sk = dec.FactorAnalysis(n_components=3)
+model_fa_sk.fit(x)
+f_sk = model_fa_sk.transform(x)
+print("Factori comuni (sklearn):", f_sk, sep="\n")
+functii3.plot_scoruri(f_sk[:, 0], f_sk[:, 1], list(t.index), "F1", "F2", "Plot scoruri - Analiza Factoriala - sk")
+functii3.show()
+
+
+
+SEMINAR 3 functii3
+import numpy as np
+import matplotlib.pyplot as plt
+
+def inlocuire_nan(x):
+    isnan = np.isnan(x)
+    assert isinstance(isnan,np.ndarray)
+    if isnan.any():
+        k = np.where(isnan)
+        x[k] = np.nanmean(x[:,k[1]],axis=0)
+
+def plot_scoruri(x,y,label,lx,ly,title):
+    fig = plt.figure(figsize=(10,7))
+    assert isinstance(fig,plt.Figure)
+    ax = fig.add_subplot(1,1,1)
+    assert isinstance(ax,plt.Axes)
+    ax.set_title(title,fontsize = 16, color = 'b')
+    ax.set_xlabel(lx)
+    ax.set_ylabel(ly)
+    ax.scatter(x,y,c='r')
+    n = len(label)
+    for i in range(n):
+        ax.text(x[i],y[i],label[i])
+    # plt.show()
+
+def show():
+    plt.show()
+
+
+
+
+SEMINAR 4
+
+import pandas as pd
+import functii
+import sklearn.cross_decomposition as cdec
+import numpy as np
+import grafice
+import sklearn.preprocessing as pp
+
+t_emisii = pd.read_csv("EnergieSiMediu/EnergieSiMediu/Emissions.csv", index_col=0)
+t_electricitate = pd.read_csv("EnergieSiMediu/EnergieSiMediu/ElectricityProduction.csv", index_col=0)
+
+var1 = list(t_emisii)[1:]
+var2 = list(t_electricitate)[1:]
+
+t = t_emisii.join(other=t_electricitate, how="inner", lsuffix="_1", rsuffix="_2")
+
+x = t[var1].values
+y = t[var2].values
+
+# print("x:",x,"y:",y,sep="\n")
+functii.inlocuire_nan(x)
+functii.inlocuire_nan(y)
+
+# Construire model analiza canonica
+n, p = x.shape
+q = y.shape[1]
+m = min(p, q)
+model_ac = cdec.CCA(n_components=m, scale=False)
+model_ac.fit(x, y)
+
+# Preluare rezultate
+# Scoruri
+z = model_ac.x_scores_
+u = model_ac.y_scores_
+
+# Normalizare scoruri
+pp.normalize(z, axis=0, copy=False)
+pp.normalize(u, axis=0, copy=False)
+print("z:", z, "u:", u, sep="\n")
+r = np.diagonal(np.corrcoef(z, u, rowvar=False)[:m, m:])
+print("Corelatii canonice:", r)
+p_values = functii.test_bartlett_wilks(r, n, p, q, m)
+print("Test Bartlett. P-Values:", p_values)
+
+ryu = np.corrcoef(y, u[:, :2], rowvar=False)[:q, q:]
+rxz = np.corrcoef(x, z[:, :2], rowvar=False)[:p, p:]
+print("Corelatii variabile-variabile canonice:")
+print(rxz, ryu, sep="\n")
+grafice.plot_corelatii(rxz[:, 0], rxz[:, 1],
+                       ryu[:, 0], ryu[:, 1],
+                       var1, var2)
+
+
+
+SEMINAR 4 FUNCTII 
+
+import numpy as np
+import scipy.stats as stt
+
+
+def inlocuire_nan(x):
+    k = np.where(np.isnan(x))
+    x[k] = np.nanmean(x[:, k[1]], axis=0)
+
+# Bartlett
+def test_bartlett_wilks(r, n, p, q, m):
+    v = 1 - r * r
+    chi2 = (-n + 1 + (p + q + 1) / 2) * np.log(np.flipud(np.cumprod(np.flipud(v))))
+    d = [(p - k + 1) * (q - k + 1) for k in range(1, m + 1)]
+    p_values = 1 - stt.chi2.cdf(chi2, d)
+    return p_values
+
+
+SEMINAR 4 grafice
+import matplotlib.pyplot as plt
+import numpy as np
+
+
+# plot corelatie
+def plot_corelatii(rxz1, rxz2, ryu1, ryu2, var1, var2):
+    fig = plt.figure(figsize=(8, 8))
+    ax = fig.add_subplot(1, 1, 1)
+    assert isinstance(ax, plt.Axes)
+    ax.plot(np.cos(np.arange(0, 2 * np.pi, 0.01)), np.sin(np.arange(0, 2 * np.pi, 0.01)), color='k')
+    ax.axhline(0);
+    ax.axvline(0)
+    ax.scatter(rxz1, rxz2, c='r', label="X-Z")
+    ax.scatter(ryu1, ryu2, c='b', label="Y-U")
+    p = len(var1)
+    for i in range(p):
+        ax.text(rxz1[i], rxz2[i], var1[i])
+    q = len(var2)
+    for i in range(q):
+        ax.text(ryu1[i], ryu2[i], var2[i])
+    ax.legend()
+    plt.show()
+
+
+
+
+SEMINAR 5
+
+
+
+import pandas as pd
+import sklearn.discriminant_analysis as disc
+import grafice
+import sklearn.metrics as metrics
+import numpy as np
+import sklearn.naive_bayes as nb
+
+set_invatare = pd.read_csv("ParkinsonsDataSet/park.csv", index_col=0)
+variabile = list(set_invatare)
+nr_var = len(variabile)
+variabile_predictor = variabile[:(nr_var - 1)]
+variabila_tinta = variabile[nr_var - 1]
+
+x = set_invatare[variabile_predictor].values
+y = set_invatare[variabila_tinta].values
+
+# print("x:",x,"y:",y,sep="\n")
+# Creare model liniar
+model_ALD = disc.LinearDiscriminantAnalysis(solver="eigen")
+model_ALD.fit(x, y)
+
+
+# Preluare rezultate si aplicare model
+# Calcul scoruri discriminante (functii Fisher)
+z = model_ALD.transform(x)
+clase = model_ALD.classes_
+grafice.distributie(z, 0, y, clase)
+
+
+# Preluare si afisare functii de clasificare
+F = model_ALD.coef_
+F0 = model_ALD.intercept_
+print("Functii clsificare:", F, F0)
+
+
+# Aplicare model pe setul de invatare
+clasificare = model_ALD.predict(x)
+tabel_clasificare = pd.DataFrame({variabila_tinta: y, "Predictia": clasificare},
+                                 index=set_invatare.index)
+tabel_clasificare.to_csv("ClasificareSetInvatare.csv")
+tabel_clasificare_err = tabel_clasificare[y != clasificare]
+tabel_clasificare_err.to_csv("ClasificariEronate.csv")
+
+
+# Clacul acuratete clasificare
+acuratete_globala = metrics.accuracy_score(y, clasificare)
+print("Acuratete globala:", acuratete_globala)
+
+
+# Calcul matrice de confuzie
+mat_conf = metrics.confusion_matrix(y, clasificare)
+tabel_confuzie = pd.DataFrame(data=mat_conf, index=clase, columns=clase)
+tabel_confuzie["Acuratete"] = np.diagonal(mat_conf) * 100 / np.sum(mat_conf, axis=1)
+print(tabel_confuzie)
+print("Coeficient Cohen-Kappa:", metrics.cohen_kappa_score(y, clasificare))
+
+# Aplicarea modelului pe setul de test
+
+set_aplicare = pd.read_csv("ParkinsonsDataSet/park_test.csv", index_col=0)
+x_ = set_aplicare[variabile_predictor].values
+
+clasificare_test = model_ALD.predict(x_)
+set_aplicare["Predictia"] = clasificare_test
+set_aplicare.to_csv("park_test_clasificare.csv")
+
+# Creare si aplicare model Bayesian
+model_Bayes = nb.GaussianNB()
+model_Bayes.fit(x, y)
+clasificare_nb = model_Bayes.predict(x)
+mat_conf_nb = metrics.confusion_matrix(y, clasificare_nb)
+tabel_confuzie_nb = pd.DataFrame(mat_conf_nb, clase, clase)
+tabel_confuzie_nb["Acuratete"] = np.diagonal(mat_conf_nb) * 100 / np.sum(mat_conf_nb, axis=1)
+print('Tabel confuzie model bayesian:', tabel_confuzie_nb, sep='\n')
+
+
+
+SEMINAR 5 GRAFICE
+import matplotlib.pyplot as plt
+import seaborn as sb
+
+
+def distributie(z, k, y, clase):
+    fig = plt.figure(figsize=(10, 8))
+    axe = fig.add_subplot(1, 1, 1)
+    assert isinstance(axe, plt.Axes)
+    axe.set_title("Distributie in axa discriminanta " + str(k), fontsize=16, color='b')
+    for g in clase:
+        sb.kdeplot(z[y == g, k], shade=True, ax=axe, label=g)
+    plt.show()
+
+
+
+SEMINAR 6
+import pandas as pd
+import numpy as np
+import scipy.cluster.hierarchy as hclust
+import grafice
+import sklearn.cluster.hierarchical as skhclust
+
+mortalitate = pd.read_csv("MortalitateEU/MortalitateEU.csv", index_col=0)
+variabile = list(mortalitate)[1:]
+nume_instante = list(mortalitate.index)
+
+x = mortalitate[variabile].values
+if np.isnan(x).any():
+    print("Valori lipsa!!!")
+    k = np.where(np.isnan(x))
+    x[k] = np.nanmean(x[:, k[1]], axis=0)
+# print(variabile, x, sep="\n")
+
+
+# Creare ierarhie prin scipy
+metoda = "ward"
+h = hclust.linkage(x, method=metoda)
+print("Matrice ierarhie:", h, sep="\n")
+# Plot ierarhie - garficul dendrograma
+grafice.dendrograma(
+    h,
+    nume_instante,
+    "Plot ierarhie. Metoda:" + metoda +
+    " Metrica euclidiana"
+)
+
+# Determinare partitie optimala
+m = np.shape(h)[0]
+
+# Numar clusteri din partitia optimala:
+k_opt = m - np.argmax(h[1:, 2] - h[:(m - 1), 2])
+print("Partitia optimala are " + str(k_opt) + " clusteri")
+
+# Construire model clusterizare sklearn
+model_clusterizare_sk = skhclust.AgglomerativeClustering(n_clusters=k_opt, linkage=metoda)
+model_clusterizare_sk.fit(x)
+coduri = model_clusterizare_sk.labels_
+partitie = np.array(["Cluster" + str(cod + 1) for cod in coduri])
+tabel_partitie = pd.DataFrame(
+    data={"Partitie": partitie},
+    index=mortalitate.index
+)
+print("Partitia optimala:", tabel_partitie, sep="\n")
+
+# Plot partitie in axele principale
+grafice.plot_partitie(
+    x,
+    partitie,
+    nume_instante,
+    "Plot partitie optimala"
+)
+grafice.show()
+
+
+
+SEMINAR 6 GRAFICE
+import matplotlib.pyplot as plt
+import scipy.cluster.hierarchy as hclust
+import seaborn as sb
+import sklearn.decomposition as dec
+
+
+def dendrograma(h, nume_instante, titlu):
+    fig = plt.figure(figsize=(12, 8))
+    assert isinstance(fig, plt.Figure)
+    axa = fig.subplots()
+    assert isinstance(axa, plt.Axes)
+    axa.set_title(titlu, fontsize=16, color='b')
+    hclust.dendrogram(h, labels=nume_instante, ax=axa)
+
+
+def plot_partitie(x, partitie, nume_instante, titlu):
+    fig = plt.figure(figsize=(12, 8))
+    assert isinstance(fig, plt.Figure)
+    axa = fig.subplots()
+    assert isinstance(axa, plt.Axes)
+    axa.set_title(titlu, fontsize=16, color='b')
+    pca = dec.PCA(n_components=2)
+    z = pca.fit_transform(x)
+    sb.scatterplot(z[:, 0], z[:, 1], hue=partitie, ax=axa)
+    n = len(nume_instante)
+    for i in range(n):
+        axa.text(z[i, 0], z[i, 1], nume_instante[i])
+
+
+def show():
+    plt.show()
+
+
+
